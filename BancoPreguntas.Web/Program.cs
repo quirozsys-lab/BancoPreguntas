@@ -3,6 +3,7 @@ using BancoPreguntas.Data.Repositories;
 using BancoPreguntas.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 
@@ -25,6 +26,11 @@ builder.Services
 // ── Blazor + MudBlazor ──────────────────────────────────────────────────────
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+
+builder.Services.Configure<HubOptions>(options =>
+{
+    options.MaximumReceiveMessageSize = 50 * 1024 * 1024; // 50MB
+});
 builder.Services.AddMudServices();
 
 // ── Repositorios Dapper ─────────────────────────────────────────────────────
@@ -69,6 +75,7 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
 
 app.UseStaticFiles();
+app.UseWebSockets();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -76,4 +83,9 @@ app.MapRazorPages();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
 app.Run();
