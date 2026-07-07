@@ -1,0 +1,12 @@
+html, body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #F5F7FA;
+}
+
+/* Scrollbar más discreta */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #bbb; border-radius: 3px; }
+
+/* Mapa de preguntas en el examen */
+.mud-button-root.mud-icon-button { min-width: unset; }

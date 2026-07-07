@@ -1,0 +1,208 @@
+@page "/admin/importar"
+@attribute [Authorize(Roles = "Admin")]
+@inject ImportadorService ImportadorSvc
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h5" Class="mb-4">Importar cuadernillo</MudText>
+
+<MudText Typo="Typo.body1" Class="mb-4" Style="color: #ff4081;">
+    Sube el PDF del cuadernillo y la hoja de respuestas. El sistema extrae las preguntas y guarda el PDF.
+</MudText>
+
+<MudPaper Elevation="2" Class="pa-6 mx-auto" Style="max-width: 800px; border-radius: 8px;">
+    <MudStack Spacing="4">
+
+        @* 1. PDF del cuadernillo de preguntas *@
+        <div>
+            <MudText Typo="Typo.body1" Class="font-weight-bold mb-2">1. PDF del cuadernillo de preguntas *</MudText>
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnPreguntasChanged" Accept=".pdf">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                               Style="text-transform: uppercase;">
+                        @(filePreguntas == null ? "SELECCIONAR PDF" : "PDF SELECCIONADO")
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+            @if (filePreguntas != null)
+            {
+                <MudText Typo="Typo.caption" Class="text-success mt-1 d-block">✔ @filePreguntas.Name</MudText>
+            }
+        </div>
+
+        @* 2. PDF de la hoja de respuestas (clave) *@
+        <div>
+            <MudText Typo="Typo.body1" Class="font-weight-bold mb-2">2. PDF de la hoja de respuestas (clave)</MudText>
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnRespuestasChanged" Accept=".pdf">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.VpnKey"
+                               Style="text-transform: uppercase;">
+                        @(fileRespuestas == null ? "SELECCIONAR PDF" : "RESPUESTAS SELECCIONADAS")
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+            @if (fileRespuestas != null)
+            {
+                <MudText Typo="Typo.caption" Class="text-success mt-1 d-block">✔ @fileRespuestas.Name</MudText>
+            }
+        </div>
+
+        @* Campos de metadatos editables (Se llenan solos al subir el PDF) *@
+        <MudDivider Class="my-2" />
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="modeloCuadernillo.Codigo" Label="Código o Título personalizado *" Variant="Variant.Outlined" Required="true" HelperText="Código único identificador para registrar el cuadernillo (Ej: EB-2026-MAT)." />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="modeloCuadernillo.Area" Label="Área / Especialidad" Variant="Variant.Outlined" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="modeloCuadernillo.Convocatoria" Label="Año Convocatoria" Variant="Variant.Outlined" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="modeloCuadernillo.Proposito" Label="Propósito" Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+
+        @* Botón de envío inferior derecho *@
+        <div class="d-flex justify-end mt-4">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Default"
+                       Disabled="@(filePreguntas == null || _procesando)"
+                       StartIcon="@Icons.Material.Filled.CloudUpload"
+                       OnClick="ProcesarImportacionAsync"
+                       Style="text-transform: uppercase; font-weight: bold; background-color: #e0e0e0;">
+                @(_procesando ? "IMPORTANDO..." : "IMPORTAR CUADERNILLO")
+            </MudButton>
+        </div>
+
+    </MudStack>
+</MudPaper>
+
+@code {
+    private IBrowserFile? filePreguntas;
+    private IBrowserFile? fileRespuestas;
+    private bool _procesando = false;
+
+    private CuadernilloDto modeloCuadernillo = new CuadernilloDto();
+
+    public class CuadernilloDto
+    {
+        public string Codigo { get; set; } = "";
+        public string Area { get; set; } = "";
+        public string Proposito { get; set; } = "Concurso de Ascenso";
+        public string Convocatoria { get; set; } = DateTime.Now.Year.ToString();
+    }
+
+    private async Task OnPreguntasChanged(IBrowserFile file)
+    {
+        filePreguntas = file;
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var msTemp = new MemoryStream();
+            await stream.CopyToAsync(msTemp);
+
+            var metadatos = await ImportadorSvc.ExtraerMetadatosPreliminaresAsync(msTemp, file.Name);
+            if (metadatos != null)
+            {
+                modeloCuadernillo.Codigo = metadatos.Codigo;
+                modeloCuadernillo.Area = metadatos.Area;
+                modeloCuadernillo.Proposito = string.IsNullOrWhiteSpace(metadatos.Proposito) ? "Concurso de Ascenso" : metadatos.Proposito;
+                modeloCuadernillo.Convocatoria = metadatos.Convocatoria;
+            }
+        }
+        catch
+        {
+            modeloCuadernillo.Codigo = Path.GetFileNameWithoutExtension(file.Name);
+        }
+
+        StateHasChanged();
+    }
+    private bool _importando = false;
+
+    private async Task ImportarAsync()
+    {
+        if (_importando) return; // evitar doble ejecución
+        _importando = true;
+        try
+        {
+            // ... tu código de importación
+        }
+        finally
+        {
+            _importando = false;
+        }
+    }
+    private void OnRespuestasChanged(IBrowserFile file)
+    {
+        fileRespuestas = file;
+        StateHasChanged();
+    }
+
+    private async Task ProcesarImportacionAsync()
+    {
+        if (filePreguntas == null) return;
+
+        if (string.IsNullOrWhiteSpace(modeloCuadernillo.Codigo))
+        {
+            Snackbar.Add("El código es obligatorio.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            _procesando = true;
+
+            using var streamPreg = filePreguntas.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            var msPreguntas = new MemoryStream();
+            await streamPreg.CopyToAsync(msPreguntas);
+
+            MemoryStream? msRespuestas = null;
+            if (fileRespuestas != null)
+            {
+                using var streamResp = fileRespuestas.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                msRespuestas = new MemoryStream();
+                await streamResp.CopyToAsync(msRespuestas);
+            }
+
+            // Nota: Se pasa 0 o se puede omitir el parámetro si modificas la firma en el servicio,
+            // ya que el conteo real se determinará dinámicamente según la lista de preguntas parseadas.
+            var resultado = await ImportadorSvc.ImportarCuadernilloCompletoAsync(
+                msPreguntas,
+                modeloCuadernillo.Codigo,
+                modeloCuadernillo.Area,
+                modeloCuadernillo.Proposito,
+                modeloCuadernillo.Convocatoria
+                
+            );
+
+            if (resultado.Exitoso)
+            {
+                Snackbar.Add(resultado.Mensaje, Severity.Success);
+                Nav.NavigateTo($"/admin/revision/{resultado.CuadernilloId}");
+            }
+            else
+            {
+                Snackbar.Add($"Aviso: {resultado.Mensaje}", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _procesando = false;
+        }
+    }
+}

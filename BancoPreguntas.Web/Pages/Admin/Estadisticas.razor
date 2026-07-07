@@ -1,0 +1,203 @@
+@page "/admin/estadisticas/{CuadernilloId:int}"
+@layout Shared.AdminLayout
+@attribute [Authorize(Roles = "Admin")]
+@inject EstadisticasRepository EstRepo
+@inject AdminRepository AdminRepo
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@using BancoPreguntas.Data.Repositories
+
+@if (_cargando)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_stats is null)
+{
+    <MudAlert Severity="Severity.Error">No se encontraron datos.</MudAlert>
+}
+else
+{
+    var c = _stats.Cuadernillo;
+
+    @* ── Encabezado ── *@
+    <div class="d-flex align-center gap-3 mb-5">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       OnClick="@(() => Nav.NavigateTo("/admin"))" />
+        <div style="flex:1">
+            <MudText Typo="Typo.h5">@c.Codigo</MudText>
+            <MudText Color="Color.Secondary" Typo="Typo.body2">
+                @c.Area · @c.Nivel · @c.Proposito · Convocatoria @c.Convocatoria
+            </MudText>
+        </div>
+        <MudSwitch T="bool" Value="@c.Activo" ValueChanged="ToggleActivo"
+                   Color="Color.Success"
+                   Label="@(c.Activo ? "Activo (visible al público)" : "Inactivo (oculto)")" />
+    </div>
+
+    @* ── Tarjetas resumen ── *@
+    <MudGrid Spacing="3" Class="mb-5">
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudText Typo="Typo.h3" Color="Color.Primary">@_stats.TotalIntentos</MudText>
+                <MudText Color="Color.Secondary">Total intentos</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudText Typo="Typo.h3" Color="Color.Success">@_stats.Finalizados</MudText>
+                <MudText Color="Color.Secondary">Finalizados</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudText Typo="Typo.h3" Color="Color.Info">@_stats.PromedioPuntaje.ToString("F1")</MudText>
+                <MudText Color="Color.Secondary">Promedio puntaje</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudText Typo="Typo.h3" Color="Color.Warning">@_stats.Expirados</MudText>
+                <MudText Color="Color.Secondary">Tiempo agotado</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudGrid Spacing="3">
+
+        @* ── Distribución de puntajes ── *@
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">Distribución de puntajes</MudText>
+                @if (!_stats.Distribucion.Any())
+                {
+                    <MudText Color="Color.Secondary" Typo="Typo.body2">Sin datos aún.</MudText>
+                }
+                else
+                {
+                    @foreach (var d in _stats.Distribucion)
+                    {
+                        double pct = _stats.Finalizados > 0
+                            ? (double)d.Cantidad / _stats.Finalizados * 100 : 0;
+                        <div class="mb-2">
+                            <div class="d-flex justify-space-between">
+                                <MudText Typo="Typo.caption">@d.Etiqueta</MudText>
+                                <MudText Typo="Typo.caption">@d.Cantidad</MudText>
+                            </div>
+                            <MudProgressLinear Value="@pct" Color="Color.Primary" Rounded="true"
+                                               Style="height:10px;border-radius:5px;" />
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ── Preguntas más difíciles ── *@
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">Top 10 preguntas con más errores</MudText>
+                @if (!_stats.PreguntasDificiles.Any())
+                {
+                    <MudText Color="Color.Secondary" Typo="Typo.body2">Sin datos aún.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="_stats.PreguntasDificiles" Dense="true" Elevation="0" Hover="true">
+                        <HeaderContent>
+                            <MudTh>N°</MudTh>
+                            <MudTh>Pregunta</MudTh>
+                            <MudTh>Respuestas</MudTh>
+                            <MudTh>% Error</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd><b>@context.Numero</b></MudTd>
+                            <MudTd>
+                                <MudTooltip Text="@context.TextoCorto" Placement="Placement.Left">
+                                    <MudText Typo="Typo.body2" Style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                        @(context.TextoCorto.Length > 50 ? context.TextoCorto[..50] + "…" : context.TextoCorto)
+                                    </MudText>
+                                </MudTooltip>
+                            </MudTd>
+                            <MudTd>@context.TotalRespuestas</MudTd>
+                            <MudTd>
+                                <MudText Color="@(context.PorcentajeError > 70 ? Color.Error : Color.Warning)"
+                                         Style="font-weight:600;">
+                                    @context.PorcentajeError%
+                                </MudText>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ── Últimos 20 intentos ── *@
+        <MudItem xs="12">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">Últimos 20 intentos</MudText>
+                @if (!_stats.UltimosIntentos.Any())
+                {
+                    <MudText Color="Color.Secondary" Typo="Typo.body2">Sin intentos registrados aún.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="_stats.UltimosIntentos" Dense="true" Hover="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Nombre</MudTh>
+                            <MudTh>Fecha</MudTh>
+                            <MudTh>Puntaje</MudTh>
+                            <MudTh>%</MudTh>
+                            <MudTh>Estado</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.NombreEvaluado</MudTd>
+                            <MudTd>@context.FechaInicio.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                            <MudTd>
+                                @if (context.Puntaje.HasValue)
+                                {
+                                    <MudText Color="@(context.Puntaje * 100.0 / context.TotalPosible >= 60 ? Color.Success : Color.Error)">
+                                        @context.Puntaje / @context.TotalPosible
+                                    </MudText>
+                                }
+                                else { <span>—</span> }
+                            </MudTd>
+                            <MudTd>
+                                @if (context.Puntaje.HasValue && context.TotalPosible > 0)
+                                {
+                                    @($"{context.Puntaje * 100.0 / context.TotalPosible:F0}%")
+                                }
+                            </MudTd>
+                            <MudTd>
+                                <MudChip T="string" Size="Size.Small"
+                                         Color="@(context.Estado == "Finalizado" ? Color.Success
+                                                 : context.Estado == "Expirado" ? Color.Warning : Color.Default)">
+                                    @context.Estado
+                                </MudChip>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public int CuadernilloId { get; set; }
+    private EstadisticasCuadernillo? _stats;
+    private bool _cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stats    = await EstRepo.ObtenerAsync(CuadernilloId);
+        _cargando = false;
+    }
+
+    private async Task ToggleActivo(bool valor)
+    {
+        if (_stats is null) return;
+        _stats.Cuadernillo.Activo = valor;
+        await AdminRepo.CambiarEstadoAsync(CuadernilloId, valor);
+        Snackbar.Add(valor ? "Cuadernillo activado." : "Cuadernillo desactivado.", Severity.Info);
+    }
+}

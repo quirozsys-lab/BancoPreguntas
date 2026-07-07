@@ -1,0 +1,297 @@
+@page "/admin/revision/{CuadernilloId:int}"
+@layout Shared.AdminLayout
+@attribute [Authorize(Roles = "Admin")]
+@inject AdminRepository AdminRepo
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@using BancoPreguntas.Core.Models
+
+<div class="d-flex align-center gap-3 mb-5">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Nav.NavigateTo("/admin"))" />
+    <div>
+        <MudText Typo="Typo.h5">Revisión de preguntas</MudText>
+        <MudText Color="Color.Secondary" Typo="Typo.body2">
+            Corrige el texto usando el PDF original del cuadernillo como referencia.
+        </MudText>
+    </div>
+</div>
+
+@if (_cargando)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (!_preguntas.Any())
+{
+    <MudAlert Severity="Severity.Success" Icon="@Icons.Material.Filled.CheckCircle">
+        ✅ No hay preguntas pendientes de revisión en este cuadernillo.
+    </MudAlert>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.QuestionAnswer"
+               OnClick="@(() => Nav.NavigateTo($"/admin/cuadernillo/{CuadernilloId}/preguntas"))"
+               Class="mt-3">
+        Ver todas las preguntas
+    </MudButton>
+}
+else
+{
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+        @_preguntas.Count pregunta(s) pendientes. El PDF original se muestra como referencia en cada pregunta.
+    </MudAlert>
+
+    @foreach (var p in _preguntas)
+    {
+        <MudPaper Elevation="2" Class="pa-5 mb-5">
+
+            @* Encabezado (Corregido: Quitados los .HasValue) *@
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudText Typo="Typo.subtitle1" Style="font-weight:600">
+                    Pregunta @p.Numero
+                    @if (p.PaginaPdf > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-left:8px;">
+                            (pág. @p.PaginaPdf del PDF)
+                        </MudText>
+                    }
+                </MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning">@p.NotaRevision</MudChip>
+            </div>
+
+            @* PDF embebido en iframe apuntando a la página correcta (Corregido: Quitado el .HasValue) *@
+            @if (!string.IsNullOrEmpty(_rutaPdf) && p.PaginaPdf > 0)
+            {
+                <MudExpansionPanel Text="📄 Ver PDF original en esta página" Class="mb-4">
+                    <iframe src="/@_rutaPdf#page=@p.PaginaPdf"
+                            style="width:100%;height:600px;border:1px solid #e0e0e0;border-radius:4px;"
+                            title="PDF cuadernillo página @p.PaginaPdf">
+                    </iframe>
+                </MudExpansionPanel>
+            }
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.QuestionAnswer"
+                       OnClick="@(() => Nav.NavigateTo($"/admin/cuadernillo/{CuadernilloId}/preguntas"))"
+                       Class="mb-4">
+                Ver todas las preguntas
+            </MudButton>
+            @* Texto de la pregunta *@
+            <MudTextField @bind-Value="p.Texto"
+                          Label="Texto de la pregunta"
+                          Variant="Variant.Outlined"
+                          Lines="4"
+                          Class="mb-3" />
+            @* Imagen del enunciado *@
+<div class="d-flex align-center gap-3 mb-3">
+    @if (!string.IsNullOrEmpty(p.ImagenPath))
+    {
+                    <MudImage Src="@($"/{p.ImagenPath}")" Height="120" ObjectFit="ObjectFit.Contain" />
+
+                    
+
+        <MudButton Size="Size.Small" Color="Color.Error"
+                   OnClick="@(() => EliminarImagenPreguntaAsync(p))">
+            Quitar imagen
+        </MudButton>
+    }
+    <MudFileUpload T="IBrowserFile" FilesChanged="@(f => SubirImagenPreguntaAsync(f, p))">
+        <ActivatorContent>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Image">
+                @(string.IsNullOrEmpty(p.ImagenPath) ? "Subir imagen" : "Cambiar imagen")
+            </MudButton>
+        </ActivatorContent>
+    </MudFileUpload>
+</div>
+            @* Alternativas *@
+            @foreach (var alt in p.Alternativas)
+            {
+                <MudGrid Spacing="2" AlignItems="AlignItems.Center" Class="mb-1">
+                    <MudItem xs="1">
+                        <MudText Style="font-weight:700;font-size:1.1rem;">@alt.Letra.ToUpper())</MudText>
+                    </MudItem>
+                    <MudItem xs="9">
+                        <MudTextField @bind-Value="alt.Texto"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                                      <MudItem xs="12">
+    <div class="d-flex align-center gap-2 mb-1">
+        @if (!string.IsNullOrEmpty(alt.ImagenPath))
+        {
+            <MudImage Src="@($"/{alt.ImagenPath}")" Height="80" ObjectFit="ObjectFit.Contain" />
+            <MudButton Size="Size.Small" Color="Color.Error"
+                       OnClick="@(() => EliminarImagenAlternativaAsync(alt))">
+                Quitar
+            </MudButton>
+        }
+        <MudFileUpload T="IBrowserFile" FilesChanged="@(f => SubirImagenAlternativaAsync(f, alt))">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Image">
+                    @(string.IsNullOrEmpty(alt.ImagenPath) ? "Imagen" : "Cambiar")
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+    </div>
+</MudItem>
+                    </MudItem>
+                    <MudItem xs="2">
+                        <MudCheckBox T="bool"
+                                     Value="alt.EsCorrecta"
+                                     ValueChanged="@(v => OnAlternativaCorrectaChanged(p, alt, v))"
+                                     Label="Correcta"
+                                     Color="Color.Success" />
+                    </MudItem>
+                </MudGrid>
+            }
+            @* Agregar alternativas faltantes *@
+            @foreach (var letra in new[] { "A", "B", "C" })
+            {
+                if (!p.Alternativas.Any(a => a.Letra.ToUpper() == letra))
+                {
+                    <MudButton Variant="Variant.Outlined"
+                               Size="Size.Small"
+                               Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => AgregarAlternativaAsync(p, letra))"
+                               Class="mb-2">
+                        Agregar alternativa @letra
+                    </MudButton>
+                }
+            }
+            @* Botones *@
+            <div class="d-flex gap-2 justify-end mt-4">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="@(() => GuardarAsync(p))">
+                    Guardar
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           StartIcon="@Icons.Material.Filled.CheckCircle"
+                           OnClick="@(() => MarcarRevisadaAsync(p))">
+                    Guardar y marcar revisada
+                </MudButton>
+            </div>
+
+        </MudPaper>
+    }
+}
+
+@code {
+    [Parameter] public int CuadernilloId { get; set; }
+
+    private List<Pregunta> _preguntas = new();
+    private string? _rutaPdf;
+    private bool _cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _rutaPdf = await AdminRepo.ObtenerRutaPdfAsync(CuadernilloId);
+        _preguntas = await AdminRepo.ObtenerPreguntasRevisionAsync(CuadernilloId);
+        _cargando = false;
+    }
+
+    private void OnAlternativaCorrectaChanged(
+        Pregunta pregunta,
+        Alternativa alternativa,
+        bool valor)
+    {
+        alternativa.EsCorrecta = valor;
+
+        if (!valor)
+            return;
+
+        foreach (var a in pregunta.Alternativas)
+        {
+            if (a.Id != alternativa.Id)
+                a.EsCorrecta = false;
+        }
+    }
+
+    private async Task GuardarAsync(Pregunta p)
+    {
+        await AdminRepo.ActualizarPreguntaAsync(p);
+        foreach (var a in p.Alternativas)
+            await AdminRepo.ActualizarAlternativaAsync(a);
+        Snackbar.Add($"Pregunta {p.Numero} guardada.", Severity.Success);
+    }
+
+    private async Task MarcarRevisadaAsync(Pregunta p)
+    {
+        await GuardarAsync(p);
+        p.NecesitaRevision = false;
+        p.NotaRevision = null;
+        await AdminRepo.ActualizarPreguntaAsync(p);
+        _preguntas.Remove(p);
+        Snackbar.Add($"Pregunta {p.Numero} marcada como revisada ✅", Severity.Success);
+    }
+    @inject IWebHostEnvironment Env
+
+    private async Task SubirImagenPreguntaAsync(IBrowserFile file, Pregunta p)
+    {
+        var ruta = await GuardarImagenAsync(file);
+        if (ruta == null) return;
+        p.ImagenPath = ruta;
+        await AdminRepo.ActualizarPreguntaAsync(p);
+        Snackbar.Add("Imagen guardada.", Severity.Success);
+    }
+
+    private async Task SubirImagenAlternativaAsync(IBrowserFile file, Alternativa alt)
+    {
+        var ruta = await GuardarImagenAsync(file);
+        if (ruta == null) return;
+        alt.ImagenPath = ruta;
+        await AdminRepo.ActualizarAlternativaAsync(alt);
+        Snackbar.Add("Imagen guardada.", Severity.Success);
+    }
+
+    private async Task EliminarImagenPreguntaAsync(Pregunta p)
+    {
+        p.ImagenPath = null;
+        await AdminRepo.ActualizarPreguntaAsync(p);
+    }
+
+    private async Task EliminarImagenAlternativaAsync(Alternativa alt)
+    {
+        alt.ImagenPath = null;
+        await AdminRepo.ActualizarAlternativaAsync(alt);
+    }
+
+    private async Task<string?> GuardarImagenAsync(IBrowserFile file)
+    {
+        try
+        {
+            var ext = Path.GetExtension(file.Name).ToLower();
+            if (!new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext))
+            {
+                Snackbar.Add("Solo se permiten imágenes (jpg, png, gif, webp).", Severity.Error);
+                return null;
+            }
+            var carpeta = Path.Combine(Env.WebRootPath, "imagenes", "preguntas");
+            Directory.CreateDirectory(carpeta);
+            var nombreArchivo = $"{Guid.NewGuid()}{ext}";
+            var rutaCompleta = Path.Combine(carpeta, nombreArchivo);
+            await using var fs = new FileStream(rutaCompleta, FileMode.Create);
+            await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(fs);
+            return Path.Combine("imagenes", "preguntas", nombreArchivo).Replace("\\", "/");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al subir imagen: {ex.Message}", Severity.Error);
+            return null;
+        }
+    }
+    private async Task AgregarAlternativaAsync(Pregunta p, string letra)
+    {
+        var nueva = new Alternativa
+        {
+            PreguntaId = p.Id,
+            Letra = letra,
+            Texto = "",
+            EsCorrecta = false
+        };
+        await AdminRepo.InsertarAlternativaAsync(nueva);
+        p.Alternativas.Add(nueva);
+        Snackbar.Add($"Alternativa {letra} agregada.", Severity.Info);
+    }
+}

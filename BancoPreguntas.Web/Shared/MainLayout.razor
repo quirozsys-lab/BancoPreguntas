@@ -1,0 +1,44 @@
+@inherits LayoutComponentBase
+
+@* Proveedores globales de MudBlazor *@
+
+<MudLayout>
+    <MudAppBar Elevation="2" Color="Color.Primary">
+        <MudIcon Icon="@Icons.Material.Filled.School" Class="mr-2" Size="Size.Large" />
+        <MudText Typo="Typo.h6" Style="font-weight:500">Simulacro Docente MINEDU</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.caption" Style="opacity:.75">Banco de Preguntas</MudText>
+    </MudAppBar>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-8 mt-14">
+            @Body
+        </MudContainer>
+
+        @* ── Footer con enlace al panel admin ── *@
+        <div style="text-align:center;padding:24px 0;margin-top:40px;border-top:1px solid #e0e0e0;">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Banco de Preguntas MINEDU &nbsp;·&nbsp;
+                <MudLink Href="/Account/Login" Typo="Typo.caption" Color="Color.Secondary"
+                         Style="opacity:.6">
+                    Acceso administrador
+                </MudLink>
+            </MudText>
+        </div>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#1565C0",
+            PrimaryDarken = "#0D47A1",
+            Secondary = "#E53935",
+            AppbarBackground = "#1565C0",
+            Background = "#F5F7FA",
+            Surface = "#FFFFFF"
+        }
+    };
+}

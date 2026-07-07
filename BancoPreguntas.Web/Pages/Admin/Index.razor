@@ -1,0 +1,134 @@
+@page "/admin"
+@layout Shared.AdminLayout
+@attribute [Authorize(Roles = "Admin")]
+@inject AdminRepository AdminRepo
+@inject EstadisticasRepository EstRepo
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h5" GutterBottom="true">Dashboard</MudText>
+
+@if (_cargando)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid Spacing="3" Class="mb-6">
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudIcon Icon="@Icons.Material.Filled.LibraryBooks" Color="Color.Primary" Size="Size.Large" />
+                <MudText Typo="Typo.h3">@_cuadernillos.Count</MudText>
+                <MudText Color="Color.Secondary">Cuadernillos</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Size="Size.Large" />
+                <MudText Typo="Typo.h3">@_cuadernillos.Count(c => c.Activo)</MudText>
+                <MudText Color="Color.Secondary">Activos</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudIcon Icon="@Icons.Material.Filled.Quiz" Color="Color.Info" Size="Size.Large" />
+                <MudText Typo="Typo.h3">@_cuadernillos.Sum(c => c.TotalPreguntas)</MudText>
+                <MudText Color="Color.Secondary">Preguntas totales</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-4 text-center">
+                <MudIcon Icon="@Icons.Material.Filled.EditNote" Color="Color.Warning" Size="Size.Large" />
+                <MudText Typo="Typo.h3">@_pendientesRevision</MudText>
+                <MudText Color="Color.Secondary">Pendientes revisión</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <div class="d-flex align-center justify-space-between mb-3">
+        <MudText Typo="Typo.h6">Cuadernillos</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.UploadFile"
+                   OnClick="@(() => Nav.NavigateTo("/admin/importar"))">
+            Importar nuevo
+        </MudButton>
+    </div>
+
+    <MudTable Items="@_cuadernillos" Hover="true" Dense="true" Elevation="1"
+              Filter="new Func<Cuadernillo, bool>(Filtrar)">
+        <ToolBarContent>
+            <MudTextField @bind-Value="_busqueda" Placeholder="Buscar..." Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Código</MudTh>
+            <MudTh>Área</MudTh>
+            <MudTh>Nivel</MudTh>
+            <MudTh>Propósito</MudTh>
+            <MudTh>Año</MudTh>
+            <MudTh>Preguntas</MudTh>
+            <MudTh>Estado</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Codigo</MudTd>
+            <MudTd>@context.Area</MudTd>
+            <MudTd>@context.Nivel</MudTd>
+            <MudTd>@context.Proposito</MudTd>
+            <MudTd>@context.Convocatoria</MudTd>
+            <MudTd>@context.TotalPreguntas</MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Activo ? Color.Success : Color.Default)">
+                    @(context.Activo ? "Activo" : "Inactivo")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudTooltip Text="Estadísticas">
+                    <MudIconButton Icon="@Icons.Material.Filled.BarChart" Size="Size.Small"
+                                   OnClick="@(() => Nav.NavigateTo($"/admin/estadisticas/{context.Id}"))" />
+                </MudTooltip>
+                <MudTooltip Text="Revisión de preguntas">
+                    <MudIconButton Icon="@Icons.Material.Filled.EditNote" Size="Size.Small"
+                                   OnClick="@(() => Nav.NavigateTo($"/admin/revision/{context.Id}"))" />
+                </MudTooltip>
+                <MudTooltip Text="@(context.Activo ? "Desactivar" : "Activar")">
+                    <MudIconButton Icon="@(context.Activo ? Icons.Material.Filled.ToggleOn : Icons.Material.Filled.ToggleOff)"
+                                   Color="@(context.Activo ? Color.Success : Color.Default)"
+                                   Size="Size.Small"
+                                   OnClick="@(() => ToggleActivo(context))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private List<Cuadernillo> _cuadernillos = new();
+    private int    _pendientesRevision = 0;
+    private bool   _cargando = true;
+    private string _busqueda = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cuadernillos = await AdminRepo.ObtenerTodosAsync();
+        foreach (var c in _cuadernillos)
+            _pendientesRevision += await AdminRepo.ContarRevisionAsync(c.Id);
+        _cargando = false;
+    }
+
+    private bool Filtrar(Cuadernillo c) =>
+        string.IsNullOrEmpty(_busqueda) ||
+        c.Codigo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+        c.Area.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+        c.Proposito.Contains(_busqueda, StringComparison.OrdinalIgnoreCase);
+
+    private async Task ToggleActivo(Cuadernillo c)
+    {
+        c.Activo = !c.Activo;
+        await AdminRepo.CambiarEstadoAsync(c.Id, c.Activo);
+    }
+}

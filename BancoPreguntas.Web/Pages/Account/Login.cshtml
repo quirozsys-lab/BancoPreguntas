@@ -1,0 +1,58 @@
+@page
+@model BancoPreguntas.Web.Pages.Account.LoginModel
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acceso Administrador</title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Roboto, sans-serif; background: #F5F7FA; display: flex;
+               justify-content: center; align-items: center; min-height: 100vh; }
+        .card { background: white; padding: 40px 36px; border-radius: 10px;
+                box-shadow: 0 4px 20px rgba(0,0,0,.12); width: 380px; }
+        .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+        .logo-icon { width: 40px; height: 40px; background: #1565C0; border-radius: 8px;
+                     display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; }
+        h2 { font-size: 1.3rem; color: #1a1a2e; font-weight: 500; }
+        .subtitle { color: #666; font-size: .85rem; margin-bottom: 28px; }
+        label { display: block; font-size: .82rem; color: #555; margin-bottom: 5px; font-weight: 500; }
+        input { width: 100%; padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 6px;
+                font-size: .95rem; margin-bottom: 18px; transition: border .2s; outline: none; }
+        input:focus { border-color: #1565C0; }
+        button { width: 100%; padding: 12px; background: #1565C0; color: white; border: none;
+                 border-radius: 6px; font-size: 1rem; font-weight: 500; cursor: pointer; transition: background .2s; }
+        button:hover { background: #0D47A1; }
+        .error { background: #FFEBEE; color: #C62828; padding: 10px 14px;
+                 border-radius: 6px; font-size: .85rem; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="logo">
+        <div class="logo-icon">🎓</div>
+        <div>
+            <h2>Banco de Preguntas</h2>
+            <p class="subtitle" style="margin:0">Panel de Administración</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <label for="email">Correo electrónico</label>
+        <input type="email" id="email" name="Email" required autofocus placeholder="admin@ejemplo.pe" />
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="Password" required placeholder="••••••••" />
+        <button type="submit">Ingresar</button>
+    </form>
+</div>
+</body>
+</html>

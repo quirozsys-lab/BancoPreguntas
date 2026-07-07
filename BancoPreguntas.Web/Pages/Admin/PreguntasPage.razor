@@ -1,0 +1,476 @@
+﻿@page "/admin/cuadernillo/{CuadernilloId:int}/preguntas"
+@layout Shared.AdminLayout
+@attribute [Authorize(Roles = "Admin")]
+@inject AdminRepository AdminRepo
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IWebHostEnvironment Env
+@using BancoPreguntas.Core.Models
+
+<div class="d-flex align-center gap-3 mb-5">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Nav.NavigateTo("/admin"))" />
+    <div>
+        <MudText Typo="Typo.h5">Preguntas del cuadernillo</MudText>
+        <MudText Color="Color.Secondary" Typo="Typo.body2">
+            Gestiona casos y preguntas.
+        </MudText>
+    </div>
+</div>
+
+@if (_cargando)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    @* ── SECCIÓN CASOS ─────────────────────────────────────────── *@
+    <MudText Typo="Typo.h6" Class="mb-3">Casos compartidos (@_casos.Count)</MudText>
+
+    @foreach (var caso in _casos)
+    {
+        <MudPaper Elevation="1" Class="pa-4 mb-3">
+            <div class="d-flex align-center justify-space-between mb-2">
+                <MudText Typo="Typo.subtitle2">Caso #@caso.Id</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                               Size="Size.Small"
+                               OnClick="@(() => EditarCaso(caso))" />
+            </div>
+            <MudText Typo="Typo.body2" Style="white-space:pre-wrap">
+                @(caso.Texto?.Length > 200 ? caso.Texto[..200] + "..." : caso.Texto)
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Preguntas: @string.Join(", ", _preguntas.Where(p => p.CasoId == caso.Id).Select(p => p.Numero))
+            </MudText>
+        </MudPaper>
+    }
+
+    @* ── SECCIÓN PREGUNTAS ─────────────────────────────────────── *@
+    <MudText Typo="Typo.h6" Class="mb-3 mt-5">Preguntas (@_preguntas.Count)</MudText>
+
+    <MudDataGrid T="Pregunta" Items="_preguntas" Hover="true" Dense="true"
+                 SortMode="SortMode.Single" Filterable="false">
+        <Columns>
+            <PropertyColumn Property="p => p.Numero" Title="N°" />
+            <TemplateColumn Title="Enunciado">
+                <CellTemplate>
+                    <MudText Typo="Typo.body2">
+                        @(context.Item.Texto?.Length > 80
+                            ? context.Item.Texto[..80] + "..."
+                            : context.Item.Texto)
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Alts">
+                <CellTemplate>
+                    <MudText>@context.Item.Alternativas.Count</MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Caso">
+                <CellTemplate>
+                    @if (context.Item.CasoId.HasValue)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                            Caso #@context.Item.CasoId
+                        </MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Revisión">
+                <CellTemplate>
+                    @if (context.Item.NecesitaRevision)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                 Color="Color.Warning" Size="Size.Small" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   OnClick="@(() => EditarPregunta(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+@* ── DIALOG EDITAR CASO ────────────────────────────────────────── *@
+<MudDrawer @bind-Open="_dialogCasoVisible"
+           Anchor="Anchor.End"
+           Width="550px"
+           Elevation="2"
+           Variant="DrawerVariant.Temporary">
+    <div class="pa-4">
+        <div class="d-flex align-center justify-space-between mb-4">
+            <MudText Typo="Typo.h6">Editar caso #@_casoEditando?.Id</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                           OnClick="@(() => _dialogCasoVisible = false)" />
+        </div>    <TitleContent>
+        <MudText Typo="Typo.h6">Editar caso #@_casoEditando?.Id</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_casoEditando != null)
+        {
+            <MudTextField @bind-Value="_casoEditando.Texto"
+                          Label="Texto del caso"
+                          Variant="Variant.Outlined"
+                          Lines="8" />
+        }
+        <div class="d-flex align-center gap-2 mt-3">
+            @if (_casoEditando != null)
+            {
+                @if (!string.IsNullOrEmpty(_casoEditando.ImagenPath))
+                {
+                    <MudImage Src="@($"/{_casoEditando.ImagenPath}")" Height="100" ObjectFit="ObjectFit.Contain" />
+                    <MudButton Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => _casoEditando.ImagenPath = null)">
+                        Quitar imagen
+                    </MudButton>
+                }
+                <MudFileUpload T="IBrowserFile" FilesChanged="@(f => SubirImagenCasoAsync(f))">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Image">
+                            @(string.IsNullOrEmpty(_casoEditando.ImagenPath) ? "Subir imagen" : "Cambiar imagen")
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+            }
+            
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => { _dialogCasoVisible = false; StateHasChanged(); })">
+            Cancelar
+        </MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="GuardarCasoAsync">Guardar</MudButton>
+    </DialogActions>
+    <div class="d-flex gap-2 justify-end mt-4">
+        <MudButton OnClick="@(() => _dialogCasoVisible = false)">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="GuardarCasoAsync">Guardar</MudButton>
+    </div>
+</div>
+</MudDrawer>
+
+@* ── DIALOG EDITAR PREGUNTA ───────────────────────────────────── *@
+<MudDrawer @bind-Open="_dialogPreguntaVisible"
+           Anchor="Anchor.End"
+           Width="650px"
+           Elevation="2"
+           Variant="DrawerVariant.Temporary">
+    <div class="pa-4" style="overflow-y:auto;height:100%">
+        <div class="d-flex align-center justify-space-between mb-4">
+            <MudText Typo="Typo.h6">Pregunta @_preguntaEditando?.Numero</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                           OnClick="@(() => _dialogPreguntaVisible = false)" />
+        </div>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Pregunta @_preguntaEditando?.Numero</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_preguntaEditando != null)
+        {
+            @* Caso de referencia *@
+            @if (_preguntaEditando.CasoId.HasValue)
+            {
+                var caso = _casos.FirstOrDefault(c => c.Id == _preguntaEditando.CasoId);
+                @if (caso != null)
+                {
+                    <MudExpansionPanel Text="📋 Ver caso compartido" Class="mb-3">
+                        <MudText Typo="Typo.body2" Style="white-space:pre-wrap">
+                            @caso.Texto
+                        </MudText>
+                    </MudExpansionPanel>
+                }
+            }
+
+            @* Enunciado *@
+            <MudTextField @bind-Value="_preguntaEditando.Texto"
+                          Label="Enunciado"
+                          Variant="Variant.Outlined"
+                          Lines="5"
+                          Class="mb-3" />
+
+            @* Imagen del enunciado *@
+            <div class="d-flex align-center gap-2 mb-4">
+                @if (!string.IsNullOrEmpty(_preguntaEditando.ImagenPath))
+                {
+                    <MudImage Src="@($"/{_preguntaEditando.ImagenPath}")"
+                              Height="100" ObjectFit="ObjectFit.Contain" />
+                    <MudButton Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => EliminarImagenPreguntaAsync(_preguntaEditando))">
+                        Quitar imagen
+                    </MudButton>
+                }
+                <MudFileUpload T="IBrowserFile"
+                               FilesChanged="@(f => SubirImagenPreguntaAsync(f, _preguntaEditando))">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Image">
+                            @(string.IsNullOrEmpty(_preguntaEditando.ImagenPath)
+                                ? "Subir imagen enunciado" : "Cambiar imagen")
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+            </div>
+
+            @* Alternativas *@
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Alternativas</MudText>
+            @foreach (var alt in _preguntaEditando.Alternativas)
+            {
+                <MudPaper Outlined="true" Class="pa-3 mb-2">
+                    <MudGrid AlignItems="AlignItems.Center" Spacing="2">
+                        <MudItem xs="1">
+                            <MudText Style="font-weight:700">@alt.Letra)</MudText>
+                        </MudItem>
+                        <MudItem xs="9">
+                            <MudTextField @bind-Value="alt.Texto"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Lines="2" />
+                        </MudItem>
+                        <MudItem xs="2">
+                            <MudCheckBox T="bool"
+                                         Value="alt.EsCorrecta"
+                                         ValueChanged="@(v => OnCorrectaChanged(_preguntaEditando, alt, v))"
+                                         Label="✓"
+                                         Color="Color.Success" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <div class="d-flex align-center gap-2">
+                                @if (!string.IsNullOrEmpty(alt.ImagenPath))
+                                {
+                                    <MudImage Src="@($"/{alt.ImagenPath}")"
+                                              Height="70" ObjectFit="ObjectFit.Contain" />
+                                    <MudButton Size="Size.Small" Color="Color.Error"
+                                               OnClick="@(() => EliminarImagenAlternativaAsync(alt))">
+                                        Quitar
+                                    </MudButton>
+                                }
+                                <MudFileUpload T="IBrowserFile"
+                                               FilesChanged="@(f => SubirImagenAlternativaAsync(f, alt))">
+                                    <ActivatorContent>
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                   StartIcon="@Icons.Material.Filled.Image">
+                                            @(string.IsNullOrEmpty(alt.ImagenPath)
+                                                ? "Imagen alt." : "Cambiar")
+                                        </MudButton>
+                                    </ActivatorContent>
+                                </MudFileUpload>
+                            </div>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+
+            @* Agregar alternativas faltantes *@
+            @foreach (var letra in new[] { "A", "B", "C" })
+            {
+                @if (!_preguntaEditando.Alternativas.Any(a => a.Letra.ToUpper() == letra))
+                {
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => AgregarAlternativaAsync(_preguntaEditando, letra))"
+                               Class="mb-2">
+                        Agregar alternativa @letra
+                    </MudButton>
+                }
+            }
+
+            @* Nota de revisión *@
+            @if (_preguntaEditando.NecesitaRevision)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                    @_preguntaEditando.NotaRevision
+                </MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => { _dialogPreguntaVisible = false; StateHasChanged(); })">
+            Cancelar
+        </MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="GuardarPreguntaAsync">Guardar</MudButton>
+        @if (_preguntaEditando?.NecesitaRevision == true)
+        {
+            <MudButton Color="Color.Success" Variant="Variant.Filled"
+                       OnClick="MarcarRevisadaAsync">Guardar y marcar revisada</MudButton>
+        }
+    </DialogActions>
+        <div class="d-flex gap-2 justify-end mt-4">
+            <MudButton OnClick="@(() => _dialogPreguntaVisible = false)">Cancelar</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       OnClick="GuardarPreguntaAsync">Guardar</MudButton>
+        </div>
+    </div>
+</MudDrawer>
+
+@code {
+    [Parameter] public int CuadernilloId { get; set; }
+
+    private List<Pregunta> _preguntas = new();
+    private List<Caso> _casos = new();
+    private bool _cargando = true;
+
+    private bool _dialogCasoVisible = false;
+    private bool _dialogPreguntaVisible = false;
+    private Caso? _casoEditando;
+    private Pregunta? _preguntaEditando;
+
+    private DialogOptions _dialogOptions = new()
+    {
+        MaxWidth = MaxWidth.Medium,
+        FullWidth = true,
+        CloseOnEscapeKey = true
+    };
+
+    private DialogOptions _dialogOptionsWide = new()
+    {
+        MaxWidth = MaxWidth.Large,
+        FullWidth = true,
+        CloseOnEscapeKey = true
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _casos = await AdminRepo.ObtenerCasosAsync(CuadernilloId);
+        _preguntas = await AdminRepo.ObtenerPreguntasAsync(CuadernilloId);
+        _cargando = false;
+    }
+
+    private void EditarCaso(Caso caso)
+    {
+        _casoEditando = caso;
+        _dialogCasoVisible = true;
+    }
+
+    private void EditarPregunta(Pregunta p)
+    {
+        _preguntaEditando = p;
+        _dialogPreguntaVisible = true;
+    }
+
+    
+    
+
+    private async Task MarcarRevisadaAsync()
+    {
+        if (_preguntaEditando == null) return;
+        _preguntaEditando.NecesitaRevision = false;
+        _preguntaEditando.NotaRevision = null;
+        await GuardarPreguntaAsync();
+        Snackbar.Add("Marcada como revisada ✅", Severity.Success);
+    }
+
+    private void OnCorrectaChanged(Pregunta p, Alternativa alt, bool valor)
+    {
+        alt.EsCorrecta = valor;
+        if (!valor) return;
+        foreach (var a in p.Alternativas.Where(a => a.Id != alt.Id))
+            a.EsCorrecta = false;
+    }
+
+    private async Task AgregarAlternativaAsync(Pregunta p, string letra)
+    {
+        var nueva = new Alternativa
+        {
+            PreguntaId = p.Id,
+            Letra = letra,
+            Texto = "",
+            EsCorrecta = false
+        };
+        await AdminRepo.InsertarAlternativaAsync(nueva);
+        p.Alternativas.Add(nueva);
+        Snackbar.Add($"Alternativa {letra} agregada.", Severity.Info);
+    }
+
+    private async Task SubirImagenPreguntaAsync(IBrowserFile file, Pregunta p)
+    {
+        var ruta = await GuardarImagenAsync(file);
+        if (ruta == null) return;
+        p.ImagenPath = ruta;
+        await AdminRepo.ActualizarPreguntaAsync(p);
+        Snackbar.Add("Imagen guardada.", Severity.Success);
+    }
+
+    private async Task SubirImagenAlternativaAsync(IBrowserFile file, Alternativa alt)
+    {
+        var ruta = await GuardarImagenAsync(file);
+        if (ruta == null) return;
+        alt.ImagenPath = ruta;
+        await AdminRepo.ActualizarAlternativaAsync(alt);
+        Snackbar.Add("Imagen guardada.", Severity.Success);
+    }
+
+    private async Task EliminarImagenPreguntaAsync(Pregunta p)
+    {
+        p.ImagenPath = null;
+        await AdminRepo.ActualizarPreguntaAsync(p);
+        Snackbar.Add("Imagen eliminada.", Severity.Info);
+    }
+
+    private async Task EliminarImagenAlternativaAsync(Alternativa alt)
+    {
+        alt.ImagenPath = null;
+        await AdminRepo.ActualizarAlternativaAsync(alt);
+        Snackbar.Add("Imagen eliminada.", Severity.Info);
+    }
+
+    private async Task<string?> GuardarImagenAsync(IBrowserFile file)
+    {
+        try
+        {
+            var ext = Path.GetExtension(file.Name).ToLower();
+            if (!new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext))
+            {
+                Snackbar.Add("Solo imágenes (jpg, png, gif, webp).", Severity.Error);
+                return null;
+            }
+            var carpeta = Path.Combine(Env.WebRootPath, "imagenes", "preguntas");
+            Directory.CreateDirectory(carpeta);
+            var nombre = $"{Guid.NewGuid()}{ext}";
+            var rutaCompleta = Path.Combine(carpeta, nombre);
+            await using var fs = new FileStream(rutaCompleta, FileMode.Create);
+            await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(fs);
+            return Path.Combine("imagenes", "preguntas", nombre).Replace("\\", "/");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al subir imagen: {ex.Message}", Severity.Error);
+            return null;
+        }
+    }
+    private async Task GuardarCasoAsync()
+    {
+        if (_casoEditando == null) return;
+        await AdminRepo.ActualizarCasoAsync(_casoEditando);
+        _dialogCasoVisible = false;
+        StateHasChanged();
+        Snackbar.Add("Caso guardado.", Severity.Success);
+    }
+
+    private async Task GuardarPreguntaAsync()
+    {
+        if (_preguntaEditando == null) return;
+        await AdminRepo.ActualizarPreguntaAsync(_preguntaEditando);
+        foreach (var alt in _preguntaEditando.Alternativas)
+            await AdminRepo.ActualizarAlternativaAsync(alt);
+        _dialogPreguntaVisible = false;
+        StateHasChanged();
+        Snackbar.Add($"Pregunta {_preguntaEditando.Numero} guardada.", Severity.Success);
+    }
+    private async Task SubirImagenCasoAsync(IBrowserFile file)
+    {
+        if (_casoEditando == null) return;
+        var ruta = await GuardarImagenAsync(file);
+        if (ruta == null) return;
+        _casoEditando.ImagenPath = ruta;
+        Snackbar.Add("Imagen del caso guardada.", Severity.Success);
+    }
+}

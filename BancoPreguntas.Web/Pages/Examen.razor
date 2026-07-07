@@ -1,0 +1,198 @@
+@page "/examen/{IntentoId:int}"
+@inject ExamenService ExamenSvc
+@inject NavigationManager Nav
+@inject IDialogService Dialog
+@implements IDisposable
+
+@if (_cargando)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_examen is not null && _examen.Preguntas.Count > 0)
+{
+    // Lógica de validación
+    if (_index < 0) _index = 0;
+    if (_index >= _examen.Preguntas.Count) _index = _examen.Preguntas.Count - 1;
+
+    // Declaración de variables para que el HTML pueda verlas
+    var pregunta = _examen.Preguntas[_index];
+    _respuestas.TryGetValue(pregunta.Id, out int? altActual);
+
+    @* ── Barra superior ── *@
+    <MudPaper Elevation="1" Class="pa-3 mb-4 d-flex align-center justify-space-between" Style="position:sticky;top:64px;z-index:10;">
+        <div>
+            <MudText Typo="Typo.body2" Style="font-weight:500">@_examen.Cuadernillo.Codigo</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_nombre</MudText>
+        </div>
+        <MudChip T="string" Color="@(_tiempoRestante.TotalMinutes < 10 ? Color.Error : Color.Primary)" Icon="@Icons.Material.Filled.Timer" Size="Size.Large" Style="font-size:1.1rem;font-weight:600">
+            @_tiempoRestante.ToString(@"hh\:mm\:ss")
+        </MudChip>
+    </MudPaper>
+
+    @* ── Mapa de preguntas ── *@
+    <MudPaper Elevation="1" Class="pa-3 mb-4">
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">
+            Respondidas: @_respuestas.Count(r => r.Value.HasValue) de @_examen.Preguntas.Count
+        </MudText>
+        <MudProgressLinear Color="Color.Success" Value="@(_respuestas.Count(r => r.Value.HasValue) * 100.0 / _examen.Preguntas.Count)" Class="mb-2" Style="height:6px;border-radius:3px;" />
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            @for (int i = 0; i < _examen.Preguntas.Count; i++)
+            {
+                var idx = i;
+                var pid = _examen.Preguntas[i].Id;
+                bool respondida = _respuestas.TryGetValue(pid, out var rv) && rv.HasValue;
+                bool esCurrent = idx == _index;
+
+                <MudButton Size="Size.Small" Variant="@(esCurrent ? Variant.Filled : Variant.Outlined)" Color="@(respondida ? Color.Success : Color.Default)" Style="min-width:36px;min-height:30px;padding:0;font-size:.75rem;" OnClick="@(() => _index = idx)">
+                    @(idx + 1)
+                </MudButton>
+            }
+        </div>
+    </MudPaper>
+
+    @* ── Pregunta ── *@
+    <MudPaper Elevation="2" Class="pa-5 mb-4">
+        <MudText Typo="Typo.overline" Color="Color.Secondary">
+            Pregunta @(_index + 1) de @_examen.Preguntas.Count
+        </MudText>
+        @* ── Caso compartido ── *@
+        @if (pregunta.CasoId.HasValue)
+        {
+            var caso = _examen.Casos.FirstOrDefault(c => c.Id == pregunta.CasoId);
+            @if (caso != null)
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-4" Icon="@Icons.Material.Filled.Article">
+                    <MudText Typo="Typo.body2" Style="white-space:pre-wrap;line-height:1.7">
+                        @caso.Texto
+                    </MudText>
+                    @if (!string.IsNullOrEmpty(caso.ImagenPath))
+                    {
+                        <MudImage Src="@($"/{caso.ImagenPath}")" Class="mt-2 rounded" Style="max-width:100%" />
+                    }
+                </MudAlert>
+            }
+        }
+        <MudText Typo="Typo.body1" Class="mt-3 mb-4" Style="line-height:1.8;font-size:1rem;">
+            @pregunta.Texto
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(pregunta.ImagenPath))
+        {
+            <MudImage Src="@($"/{pregunta.ImagenPath}")" Alt="Imagen" Class="mb-4 rounded" Style="max-width:100%;border:1px solid #e0e0e0;" />
+        }
+
+        <MudRadioGroup T="int?" Value="@altActual" ValueChanged="@(v => ResponderAsync(pregunta.Id, v))">
+            @foreach (var alt in pregunta.Alternativas)
+            {
+                <div Class="mb-3">
+                    <MudRadio T="int?" Value="@((int?)alt.Id)" Color="Color.Primary">
+                        <div>
+                            <MudText Style="font-size:.95rem;">
+                                <b>@alt.Letra.ToUpper())</b>&nbsp;@alt.Texto
+                            </MudText>
+                            @if (!string.IsNullOrEmpty(alt.ImagenPath))
+                            {
+                                <MudImage Src="@($"/{alt.ImagenPath}")"
+                                          Style="max-width:100%;max-height:200px;margin-top:8px;"
+                                          ObjectFit="ObjectFit.Contain" />
+                            }
+                        </div>
+                    </MudRadio>
+                </div>
+            }
+        </MudRadioGroup>
+    </MudPaper>
+
+    @* ── Navegación ── *@
+    <div class="d-flex justify-space-between">
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ArrowBack" Disabled="@(_index == 0)" OnClick="@(() => _index--)">Anterior</MudButton>
+
+        @if (_index < _examen.Preguntas.Count - 1)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward" OnClick="@(() => _index++)">Siguiente</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Success" EndIcon="@Icons.Material.Filled.CheckCircle" OnClick="ConfirmarFinalizar">Finalizar examen</MudButton>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int IntentoId { get; set; }
+    private ExamenVm? _examen;
+    private string? _error;
+    private string _nombre = string.Empty;
+    private bool _cargando = true;
+    private int _index = 0;
+    private readonly Dictionary<int, int?> _respuestas = new();
+    private TimeSpan _tiempoRestante;
+    private DateTime _horaFin;
+    private System.Threading.Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var intento = await ExamenSvc.ObtenerIntentoAsync(IntentoId);
+        if (intento is null) { _error = "Intento no encontrado."; _cargando = false; return; }
+        if (intento.Estado != "EnCurso") { Nav.NavigateTo($"/resultado/{IntentoId}"); return; }
+        _nombre = intento.NombreEvaluado;
+
+        _examen = await ExamenSvc.CargarExamenEnCursoAsync(IntentoId);
+        if (_examen is null || _examen.Preguntas == null || _examen.Preguntas.Count == 0)
+        {
+            _error = "El examen no contiene preguntas para mostrar.";
+            _cargando = false;
+            return;
+        }
+
+        foreach (var p in _examen.Preguntas) _respuestas[p.Id] = null;
+
+        _horaFin = intento.FechaInicio.AddMinutes(_examen.Cuadernillo.TiempoMinutos);
+        _tiempoRestante = _horaFin - DateTime.Now;
+        if (_tiempoRestante < TimeSpan.Zero) { await ExpirarAsync(); return; }
+
+        _timer = new System.Threading.Timer(async _ =>
+        {
+            _tiempoRestante = _horaFin - DateTime.Now;
+            if (_tiempoRestante <= TimeSpan.Zero) { _tiempoRestante = TimeSpan.Zero; await ExpirarAsync(); return; }
+            await InvokeAsync(StateHasChanged);
+        }, null, 0, 1000);
+
+        _cargando = false;
+    }
+
+    private async Task ResponderAsync(int preguntaId, int? altId)
+    {
+        _respuestas[preguntaId] = altId;
+        await ExamenSvc.GuardarRespuestaAsync(IntentoId, preguntaId, altId);
+        StateHasChanged();
+    }
+
+    private async Task ConfirmarFinalizar()
+    {
+        int sinResponder = _respuestas.Count(r => !r.Value.HasValue);
+        string msg = sinResponder > 0 ? $"Tienes {sinResponder} pregunta(s) sin responder. ¿Deseas finalizar de todas formas?" : "¿Confirmas que deseas finalizar el examen?";
+        bool? ok = await Dialog.ShowMessageBox("Finalizar examen", msg, yesText: "Sí, finalizar", cancelText: "Cancelar");
+        if (ok == true) await FinalizarAsync();
+    }
+
+    private async Task FinalizarAsync()
+    {
+        _timer?.Dispose();
+        await ExamenSvc.FinalizarAsync(IntentoId);
+        Nav.NavigateTo($"/resultado/{IntentoId}");
+    }
+
+    private async Task ExpirarAsync()
+    {
+        _timer?.Dispose();
+        await ExamenSvc.ExpirarAsync(IntentoId);
+        await InvokeAsync(() => Nav.NavigateTo($"/resultado/{IntentoId}"));
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

@@ -1,0 +1,147 @@
+@page "/"
+@inject ExamenService ExamenSvc
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h4" GutterBottom="true">Simulacro de Evaluación Docente</MudText>
+<MudText Color="Color.Secondary" Class="mb-6">
+    Selecciona el área, propósito y año de convocatoria para iniciar tu examen de práctica.
+</MudText>
+
+<MudPaper Elevation="2" Class="pa-6" Style="max-width:700px">
+    <MudGrid Spacing="3">
+
+        @* Nombre *@
+        <MudItem xs="12">
+            <MudTextField @bind-Value="_nombre"
+                          Label="Tu nombre completo"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Person"
+                          Immediate="true" />
+        </MudItem>
+
+        @* Área *@
+        <MudItem xs="12" sm="6">
+            <MudSelect T="string" Value="_area" ValueChanged="OnAreaChanged"
+                       Label="Área / Especialidad" Variant="Variant.Outlined"
+                       Disabled="@(_areas.Count == 0)">
+                @foreach (var a in _areas)
+                { <MudSelectItem Value="@a">@a</MudSelectItem> }
+            </MudSelect>
+        </MudItem>
+
+        @* Propósito *@
+        <MudItem xs="12" sm="6">
+            <MudSelect T="string" Value="_proposito" ValueChanged="OnPropositoChanged"
+                       Label="Propósito" Variant="Variant.Outlined"
+                       Disabled="@string.IsNullOrEmpty(_area)">
+                @foreach (var p in _propositos)
+                { <MudSelectItem Value="@p">@p</MudSelectItem> }
+            </MudSelect>
+        </MudItem>
+
+        @* Convocatoria *@
+        <MudItem xs="12" sm="6">
+            <MudSelect T="string" Value="_convocatoria" ValueChanged="OnConvocatoriaChanged"
+                       Label="Año de convocatoria" Variant="Variant.Outlined"
+                       Disabled="@string.IsNullOrEmpty(_proposito)">
+                @foreach (var c in _convocatorias)
+                { <MudSelectItem Value="@c">@c</MudSelectItem> }
+            </MudSelect>
+        </MudItem>
+
+        @* Cuadernillo *@
+        @if (_cuadernillos.Count > 0)
+        {
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Selecciona el cuadernillo:</MudText>
+                <MudRadioGroup T="int" @bind-Value="_cuadernilloId">
+                    @foreach (var c in _cuadernillos)
+                    {
+                        <MudRadio T="int" Value="@c.Id" Color="Color.Primary" Class="mb-1">
+                            <MudText><b>@c.Codigo</b> — @c.TotalPreguntas preguntas · @c.TiempoMinutos min</MudText>
+                        </MudRadio>
+                    }
+                </MudRadioGroup>
+            </MudItem>
+        }
+
+        @* Error *@
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Error" Dense="true">@_error</MudAlert>
+            </MudItem>
+        }
+
+        @* Botón *@
+        <MudItem xs="12" Class="d-flex justify-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       Disabled="@(!PuedeIniciar || _cargando)"
+                       OnClick="IniciarExamen">
+                @(_cargando ? "Iniciando..." : "Iniciar examen")
+            </MudButton>
+        </MudItem>
+
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private string _nombre = string.Empty;
+    private string _area = string.Empty;
+    private string _proposito = string.Empty;
+    private string _convocatoria = string.Empty;
+    private int    _cuadernilloId = 0;
+    private string _error = string.Empty;
+    private bool   _cargando = false;
+
+    private List<string>       _areas        = new();
+    private List<string>       _propositos   = new();
+    private List<string>       _convocatorias = new();
+    private List<Cuadernillo>  _cuadernillos  = new();
+
+    private bool PuedeIniciar =>
+        !string.IsNullOrWhiteSpace(_nombre) && _cuadernilloId > 0;
+
+    protected override async Task OnInitializedAsync() =>
+        _areas = await ExamenSvc.ObtenerAreasAsync();
+
+    private async Task OnAreaChanged(string area)
+    {
+        _area = area; _proposito = _convocatoria = string.Empty;
+        _cuadernilloId = 0; _cuadernillos = new();
+        _propositos   = await ExamenSvc.ObtenerPropositosAsync(area);
+        _convocatorias = new();
+    }
+
+    private async Task OnPropositoChanged(string proposito)
+    {
+        _proposito = proposito; _convocatoria = string.Empty;
+        _cuadernilloId = 0; _cuadernillos = new();
+        _convocatorias = await ExamenSvc.ObtenerConvocatoriasAsync(_area, proposito);
+    }
+
+    private async Task OnConvocatoriaChanged(string conv)
+    {
+        _convocatoria = conv; _cuadernilloId = 0;
+        _cuadernillos = await ExamenSvc.ObtenerCuadernillosAsync(_area, _proposito, conv);
+        if (_cuadernillos.Count == 1) _cuadernilloId = _cuadernillos[0].Id;
+    }
+
+    private async Task IniciarExamen()
+    {
+        _error = string.Empty;
+        if (string.IsNullOrWhiteSpace(_nombre)) { _error = "Ingresa tu nombre."; return; }
+        if (_cuadernilloId == 0) { _error = "Selecciona un cuadernillo."; return; }
+
+        _cargando = true;
+        try
+        {
+            var examen = await ExamenSvc.IniciarAsync(_cuadernilloId, _nombre);
+            Nav.NavigateTo($"/examen/{examen.IntentoId}");
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _cargando = false; }
+    }
+}

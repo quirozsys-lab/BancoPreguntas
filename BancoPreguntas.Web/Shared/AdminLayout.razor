@@ -1,0 +1,54 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+
+<MudThemeProvider Theme="_theme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Dark" Dense="true">
+        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="mr-2" />
+        <MudText Typo="Typo.subtitle1" Style="font-weight:500">Administración — Banco de Preguntas</MudText>
+        <MudSpacer />
+        <MudTooltip Text="Ir al sitio público">
+            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Color="Color.Inherit"
+                           Href="/" Target="_blank" />
+        </MudTooltip>
+        <MudTooltip Text="Cerrar sesión">
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"
+                           Href="/Account/Logout" />
+        </MudTooltip>
+    </MudAppBar>
+
+    <MudDrawer Open="true" Variant="DrawerVariant.Persistent" Elevation="1" Width="220px">
+        <MudDrawerHeader Class="pt-14">
+            <MudText Typo="Typo.overline" Color="Color.Secondary">PANEL ADMIN</MudText>
+        </MudDrawerHeader>
+        <MudNavMenu>
+            <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Dashboard"
+                        Match="NavLinkMatch.All">Dashboard</MudNavLink>
+            <MudNavLink Href="/admin/cuadernillos" Icon="@Icons.Material.Filled.LibraryBooks">
+                Cuadernillos</MudNavLink>
+            <MudNavLink Href="/admin/importar" Icon="@Icons.Material.Filled.UploadFile">
+                Importar</MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-16 pb-8 pl-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary          = "#1565C0",
+            AppbarBackground = "#212121",
+            Background       = "#F5F7FA"
+        }
+    };
+}

@@ -1,0 +1,156 @@
+@page "/resultado/{IntentoId:int}"
+@inject ExamenService ExamenSvc
+@inject NavigationManager Nav
+
+@if (_cargando)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else if (_resultado is null)
+{
+    <MudAlert Severity="Severity.Error">No se encontró el resultado.</MudAlert>
+}
+else
+{
+    var i   = _resultado.Intento;
+    var pct = i.TotalPosible > 0 ? (double)(i.Puntaje ?? 0) / i.TotalPosible * 100 : 0;
+    bool aprobado = pct >= 60;
+
+    @* ── Tarjeta de puntaje ── *@
+    <MudPaper Elevation="3" Class="pa-6 mb-6 text-center">
+        <MudIcon Icon="@(aprobado ? Icons.Material.Filled.EmojiEvents : Icons.Material.Filled.School)"
+                 Color="@(aprobado ? Color.Warning : Color.Primary)"
+                 Style="font-size:3rem;" Class="mb-2" />
+
+        <MudText Typo="Typo.h5" Class="mb-1">@i.NombreEvaluado</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@i.TituloCuadernillo</MudText>
+
+        <MudText Typo="Typo.h2" Color="@(aprobado ? Color.Success : Color.Error)"
+                 Style="font-weight:700;">
+            @i.Puntaje / @i.TotalPosible
+        </MudText>
+        <MudText Typo="Typo.h6" Color="Color.Secondary">@pct.ToString("F1")% de aciertos</MudText>
+
+        <MudProgressLinear Color="@(aprobado ? Color.Success : Color.Error)"
+                           Value="@pct" Rounded="true"
+                           Style="height:14px;border-radius:7px;margin:16px 0;" />
+
+        <MudGrid Justify="Justify.Center" Spacing="2">
+            <MudItem xs="4">
+                <MudText Color="Color.Success" Typo="Typo.body2">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                    @_resultado.Preguntas.Count(p => p.Acerto) correctas
+                </MudText>
+            </MudItem>
+            <MudItem xs="4">
+                <MudText Color="Color.Error" Typo="Typo.body2">
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                    @_resultado.Preguntas.Count(p => !p.Acerto && !p.NoRespondio) incorrectas
+                </MudText>
+            </MudItem>
+            <MudItem xs="4">
+                <MudText Color="Color.Default" Typo="Typo.body2">
+                    <MudIcon Icon="@Icons.Material.Filled.RemoveCircleOutline" Size="Size.Small" />
+                    @_resultado.Preguntas.Count(p => p.NoRespondio) sin responder
+                </MudText>
+            </MudItem>
+        </MudGrid>
+
+        @if (i.Estado == "Expirado")
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                El tiempo se agotó y el examen fue cerrado automáticamente.
+            </MudAlert>
+        }
+    </MudPaper>
+
+    @* ── Revisión por pregunta ── *@
+    <MudText Typo="Typo.h6" Class="mb-3">Revisión detallada</MudText>
+
+    <MudExpansionPanels MultiExpansion="true">
+        @foreach (var pr in _resultado.Preguntas)
+        {
+            var color  = pr.Acerto ? Color.Success : (pr.NoRespondio ? Color.Default : Color.Error);
+            var icono  = pr.Acerto
+                ? Icons.Material.Filled.CheckCircle
+                : (pr.NoRespondio ? Icons.Material.Filled.RemoveCircleOutline : Icons.Material.Filled.Cancel);
+
+            <MudExpansionPanel Class="mb-1">
+                <TitleContent>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <MudIcon Icon="@icono" Color="@color" Size="Size.Small" />
+                        <MudText Typo="Typo.body2" Style="font-weight:500">
+                            Pregunta @pr.Pregunta.Numero
+                        </MudText>
+                        @if (pr.NoRespondio)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default">Sin responder</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="@color">
+                                Tu respuesta: @pr.LetraSeleccionada?.ToUpper()
+                            </MudChip>
+                        }
+                        @if (!pr.Acerto)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Success">
+                                ✓ Correcta: @pr.LetraCorrecta.ToUpper()
+                            </MudText>
+                        }
+                    </div>
+                </TitleContent>
+                <ChildContent>
+                    <MudText Typo="Typo.body2" Class="mb-3" Style="line-height:1.7">
+                        @pr.Pregunta.Texto
+                    </MudText>
+
+                    @if (!string.IsNullOrEmpty(pr.Pregunta.ImagenPath))
+                    {
+                        <MudImage Src="@($"/{pr.Pregunta.ImagenPath}")" Class="mb-3 rounded"
+                                  Style="max-width:100%;border:1px solid #e0e0e0;" />
+                    }
+
+                    @foreach (var alt in pr.Pregunta.Alternativas)
+                    {
+                        bool esSel      = alt.Letra == pr.LetraSeleccionada;
+                        bool esCorr     = alt.Letra == pr.LetraCorrecta;
+                        string bg       = esCorr ? "#E8F5E9" : (esSel && !esCorr ? "#FFEBEE" : "transparent");
+                        var   iconoAlt  = esCorr
+                            ? Icons.Material.Filled.CheckCircle
+                            : (esSel ? Icons.Material.Filled.Cancel : Icons.Material.Outlined.RadioButtonUnchecked);
+                        var   colorAlt  = esCorr ? Color.Success : (esSel ? Color.Error : Color.Default);
+
+                        <div style="background:@bg;border-radius:6px;padding:8px 12px;margin-bottom:4px;display:flex;align-items:flex-start;gap:8px;">
+                            <MudIcon Icon="@iconoAlt" Color="@colorAlt" Size="Size.Small" Style="margin-top:2px;flex-shrink:0;" />
+                            <MudText Typo="Typo.body2">
+                                <b>@alt.Letra.ToUpper())</b> @alt.Texto
+                            </MudText>
+                        </div>
+                    }
+                </ChildContent>
+            </MudExpansionPanel>
+        }
+    </MudExpansionPanels>
+
+    @* ── Botón volver ── *@
+    <div class="d-flex justify-center mt-6">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Home"
+                   OnClick="@(() => Nav.NavigateTo("/"))">
+            Volver al inicio
+        </MudButton>
+    </div>
+}
+
+@code {
+    [Parameter] public int IntentoId { get; set; }
+    private ResultadoVm? _resultado;
+    private bool _cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _resultado = await ExamenSvc.ObtenerResultadoAsync(IntentoId);
+        _cargando  = false;
+    }
+}
