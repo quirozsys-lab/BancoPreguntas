@@ -22,7 +22,7 @@
                        Color="Color.Default"
                        StartIcon="@Icons.Material.Filled.PictureAsPdf"
                        Style="text-transform: uppercase;"
-                       OnClick="@(async () => await JS.InvokeVoidAsync("eval", "document.getElementById('filePreguntasInput').click()"))">
+                       OnClick="@(async () => await JS.InvokeVoidAsync("clickElement", "filePreguntasInput"))">
                 @(filePreguntas == null ? "SELECCIONAR PDF" : "PDF SELECCIONADO")
             </MudButton>
             @if (filePreguntas != null)
@@ -39,7 +39,7 @@
                        Color="Color.Default"
                        StartIcon="@Icons.Material.Filled.VpnKey"
                        Style="text-transform: uppercase;"
-                   OnClick="@(async () => await JS.InvokeVoidAsync("eval", "document.getElementById('filePreguntasInput').click()"))">
+                       OnClick="@(async () => await JS.InvokeVoidAsync("clickElement", "filePreguntasInput"))">
                 @(fileRespuestas == null ? "SELECCIONAR PDF" : "RESPUESTAS SELECCIONADAS")
             </MudButton>
             @if (fileRespuestas != null)
