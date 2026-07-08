@@ -21,5 +21,5 @@ RUN apt-get update && apt-get install -y libgdiplus libgssapi-krb5-2 && rm -rf /
 
 COPY --from=build /app/publish .
 EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:$PORT
 ENTRYPOINT ["dotnet", "BancoPreguntas.Web.dll"]
