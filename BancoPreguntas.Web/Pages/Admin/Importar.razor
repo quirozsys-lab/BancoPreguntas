@@ -39,7 +39,7 @@
                        Color="Color.Default"
                        StartIcon="@Icons.Material.Filled.VpnKey"
                        Style="text-transform: uppercase;"
-                       OnClick="@(async () => await JS.InvokeVoidAsync("clickElement", "filePreguntasInput"))">
+                       OnClick="@(async () => await JS.InvokeVoidAsync("clickElement", "fileRespuestasInput"))">
                 @(fileRespuestas == null ? "SELECCIONAR PDF" : "RESPUESTAS SELECCIONADAS")
             </MudButton>
             @if (fileRespuestas != null)
