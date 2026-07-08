@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connStr = builder.Configuration.GetConnectionString("DefaultConnection")!;
 
 // ── Identity (EF Core) ──────────────────────────────────────────────────────
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connStr));
 builder.Services
