@@ -11,7 +11,7 @@ RUN dotnet restore BancoPreguntas.Web/BancoPreguntas.Web.csproj
 # Copiar todo y publicar
 COPY . .
 RUN dotnet publish BancoPreguntas.Web/BancoPreguntas.Web.csproj \
-    -c Release -o /app/publish --no-restore
+    -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
